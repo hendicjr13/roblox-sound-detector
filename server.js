@@ -49,12 +49,12 @@ app.post('/api/detect-sounds', async (req, res) => {
 
         console.log(`[INFO] Ditemukan ${allAssetIds.length} Asset ID. Testing Audio Delivery...`);
 
-        // STEP 2: Cek Nama & Status Asli via Audio Delivery API
+        // STEP 2: Cek Status Asli via Audio Delivery API
         let allSounds = [];
         
         for (let i = 0; i < allAssetIds.length; i++) {
             const assetId = allAssetIds[i];
-            let status = "DELETED / COPYRIGHT"; // Default ke deleted
+            let status = "DELETED / COPYRIGHT"; // Default
             let soundName = "Unknown";
 
             try {
@@ -71,26 +71,28 @@ app.post('/api/detect-sounds', async (req, res) => {
                 );
                 soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown";
 
-                // 2. CEK STATUS ASLI: Coba ambil link file audio dari Asset Delivery API
-                // Ini endpoint yang dipakai Roblox Studio buat play audio
+                // 2. CEK STATUS ASLI: Cek HTTP Status Code dari Asset Delivery
                 const deliveryRes = await axios.get(
                     `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`,
                     {
                         headers: {
-                            'Cookie': `.ROBLOSECURITY=${cookie}`,
-                            'User-Agent': 'Roblox/WinInet' // User agent khas Roblox client
+                            'User-Agent': 'Roblox/WinInet'
                         },
-                        timeout: 5000
+                        timeout: 5000,
+                        maxRedirects: 0, // PENTING: Jangan ikuti redirect, cuma cek status code
+                        validateStatus: (status) => status < 500 // Terima 302 dan 404 tanpa error
                     }
                 );
 
-                // Kalau berhasil dapet response dan ada 'location' (link file audio), berarti ACTIVE
-                if (deliveryRes.data && deliveryRes.data.location) {
+                // Kalau status 302 (Found/Redirect), berarti file audio ada di CDN = ACTIVE
+                // Kalau status 404 (Not Found), berarti file dihapus/diblokir = DELETED
+                if (deliveryRes.status === 302) {
                     status = "ACTIVE";
+                } else {
+                    status = "DELETED / COPYRIGHT";
                 }
 
             } catch (err) {
-                // Kalau Economy API atau Delivery API nolak (404/403), berarti pasti Deleted/Copyright
                 status = "DELETED / COPYRIGHT";
             }
 
@@ -100,7 +102,6 @@ app.post('/api/detect-sounds', async (req, res) => {
                 status: status
             });
 
-            // Delay 500ms biar aman dari rate limit (kita ngirim 2 request per asset)
             await sleep(500);
 
             if ((i + 1) % 10 === 0 || i === allAssetIds.length - 1) {
