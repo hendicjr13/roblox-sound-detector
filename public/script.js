@@ -16,6 +16,7 @@ async function detectSounds() {
     btn.innerText = 'Scanning...';
     status.innerText = '⏳ Sedang scanning inventory... Ini bisa memakan waktu tergantung jumlah sound. Jangan refresh halaman!';
     status.classList.remove('hidden');
+    status.className = 'text-center text-yellow-400 mb-4'; // Reset class ke kuning
     resultArea.classList.add('hidden');
 
     try {
@@ -63,19 +64,28 @@ async function detectSounds() {
 
 function copyAllIds() {
     if (currentSoundsData.length === 0) return;
+    
+    // ✅ FIX: Pastikan pakai backslash-n (\n) buat newline, bukan huruf n biasa
     const ids = currentSoundsData.map(s => s.assetId).join('\n');
+    
     navigator.clipboard.writeText(ids).then(() => {
-        alert('Semua Asset ID berhasil di-copy!');
+        alert('Semua Asset ID berhasil di-copy ke clipboard!');
+    }).catch(err => {
+        console.error('Gagal copy:', err);
+        alert('Gagal copy, coba manual.');
     });
 }
 
 function downloadCsv() {
     if (currentSoundsData.length === 0) return;
+    
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Asset ID,Name\n"; // Header
+    csvContent += "Asset ID,Name\n"; // Header (pakai \n)
 
     currentSoundsData.forEach(row => {
-        csvContent += `${row.assetId},"${row.name.replace(/"/g, '""')}"\n`;
+        // Escape double quote di nama file biar CSV gak rusak
+        const safeName = row.name.replace(/"/g, '""'); 
+        csvContent += `${row.assetId},"${safeName}"\n`; // Pakai \n
     });
 
     const encodedUri = encodeURI(csvContent);
