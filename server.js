@@ -21,13 +21,13 @@ app.post('/api/detect-sounds', async (req, res) => {
     }
 
     try {
-        let allSounds = [];
+        let allAssetIds = [];
         let cursor = '';
         let page = 1;
 
         console.log(`[INFO] Memulai scanning inventory untuk User ID: ${userId}`);
 
-        // Looping Pagination
+        // STEP 1: Ambil semua Asset ID dulu dari Inventory API
         while (true) {
             console.log(`[INFO] Fetching halaman ${page}...`);
             
@@ -44,17 +44,13 @@ app.post('/api/detect-sounds', async (req, res) => {
                 }
             });
 
-            // Masukin data sound ke array
-            const sounds = invRes.data.data.map(item => ({
-                assetId: item.assetId,
-                name: item.name
-            }));
-            
-            allSounds.push(...sounds);
+            // Ambil assetId doang dari response
+            const assetIds = invRes.data.data.map(item => item.assetId);
+            allAssetIds.push(...assetIds);
 
             // Cek apakah masih ada halaman selanjutnya
             if (!invRes.data.nextPageCursor) {
-                break; // Berhenti kalau cursor habis (artinya udah halaman terakhir)
+                break; // Berhenti kalau cursor habis
             }
 
             cursor = invRes.data.nextPageCursor;
@@ -62,6 +58,59 @@ app.post('/api/detect-sounds', async (req, res) => {
 
             // DELAY WAJIB! 800ms biar aman dari banned IP Railway
             await sleep(800); 
+        }
+
+        console.log(`[INFO] Ditemukan ${allAssetIds.length} Asset ID. Sekarang fetching detail nama dari Catalog API...`);
+
+        // STEP 2: Fetch detail nama dari Catalog API
+        let allSounds = [];
+        
+        // Roblox Catalog API cuma bisa handle sekitar 10-20 asset per request
+        // Kita proses dalam batch kecil
+        for (let i = 0; i < allAssetIds.length; i += 10) {
+            const batchIds = allAssetIds.slice(i, i + 10);
+            
+            try {
+                console.log(`[INFO] Fetching batch ${Math.floor(i/10) + 1} dari ${Math.ceil(allAssetIds.length/10)}...`);
+                
+                const catalogRes = await axios.get(
+                    `https://catalog.roblox.com/v1/assets?assetIds=${batchIds.join(',')}`,
+                    {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+                        }
+                    }
+                );
+
+                const catalogData = catalogRes.data.data || [];
+                
+                // Mapping hasil catalog ke format yang kita mau
+                catalogData.forEach(asset => {
+                    allSounds.push({
+                        assetId: asset.id,
+                        name: asset.name || "Unknown Sound"
+                    });
+                });
+
+                // Delay biar gak kena rate limit Catalog API
+                await sleep(500);
+                
+                console.log(`[INFO] Progress: ${Math.min(i + 10, allAssetIds.length)}/${allAssetIds.length} asset diproses`);
+                
+            } catch (err) {
+                console.error(`[ERROR] Gagal fetch batch ${Math.floor(i/10) + 1}:`, err.message);
+                
+                // Kalau gagal fetch, tetap masukin dengan nama "Unknown"
+                batchIds.forEach(id => {
+                    allSounds.push({ 
+                        assetId: id, 
+                        name: "Unknown (Fetch Failed)" 
+                    });
+                });
+                
+                // Tetap delay walaupun error
+                await sleep(500);
+            }
         }
 
         console.log(`[SUCCESS] Selesai! Total ${allSounds.length} sound ditemukan.`);
