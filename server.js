@@ -31,8 +31,12 @@ app.post('/api/detect-sounds', async (req, res) => {
         while (true) {
             console.log(`[INFO] Fetching halaman ${page}...`);
             
-            const invUrl = `https://inventory.roblox.com/v2/users/${userId}/inventory/3?limit=100&cursor=${cursor}`;
-            
+            // ✅ FIX: Bikin URL dinamis. Kalau cursor kosong (request pertama), jangan tempel parameter cursor.
+            let invUrl = `https://inventory.roblox.com/v2/users/${userId}/inventory/3?limit=100`;
+            if (cursor) {
+                invUrl += `&cursor=${cursor}`;
+            }
+
             const invRes = await axios.get(invUrl, {
                 headers: {
                     'Cookie': `.ROBLOSECURITY=${cookie}`,
