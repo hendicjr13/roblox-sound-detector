@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Sound ID Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full bg-gray-800 p-8 rounded-xl shadow-2xl">
+        <h1 class="text-3xl font-bold text-center mb-2 text-blue-400">🎵 Roblox Sound Detector</h1>
+        <p class="text-center text-gray-400 mb-6">Masukkan User ID Roblox untuk mendeteksi semua Sound Asset ID.</p>
+        
+        <div class="flex gap-3 mb-6">
+            <input type="text" id="userIdInput" placeholder="Contoh: 123456789" 
+                   class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+            <button id="detectBtn" onclick="detectSounds()" 
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition">
+                Detect
+            </button>
+        </div>
+
+        <div id="status" class="text-center text-yellow-400 mb-4 hidden"></div>
+
+        <div id="resultArea" class="hidden">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-xl font-bold">Hasil (<span id="totalSounds">0</span> Sounds)</h2>
+                <div class="flex gap-2">
+                    <button onclick="copyAllIds()" class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">Copy All IDs</button>
+                    <button onclick="downloadCsv()" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">Download CSV</button>
+                </div>
+            </div>
+            
+            <div class="max-h-96 overflow-y-auto bg-gray-900 rounded-lg border border-gray-700">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-700 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-2">Asset ID</th>
+                            <th class="px-4 py-2">Nama Sound</th>
+                        </tr>
+                    </thead>
+                    <tbody id="soundTableBody">
+                        <!-- Data bakal masuk sini -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
