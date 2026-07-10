@@ -26,7 +26,7 @@ app.post('/api/detect-sounds', async (req, res) => {
 
         console.log(`[INFO] Scanning inventory User ID: ${userId}`);
 
-        // STEP 1: Ambil semua Asset ID
+        // STEP 1: Ambil semua Asset ID dari Inventory
         while (true) {
             let invUrl = `https://inventory.roblox.com/v2/users/${userId}/inventory/3?limit=100`;
             if (cursor) invUrl += `&cursor=${cursor}`;
@@ -47,18 +47,18 @@ app.post('/api/detect-sounds', async (req, res) => {
             await sleep(600);
         }
 
-        console.log(`[INFO] Ditemukan ${allAssetIds.length} Asset ID. Testing playability...`);
+        console.log(`[INFO] Ditemukan ${allAssetIds.length} Asset ID. Testing Audio Delivery...`);
 
-        // STEP 2: Test apakah audio bisa diputer (bukan cuma cek database)
+        // STEP 2: Cek Nama & Status Asli via Audio Delivery API
         let allSounds = [];
         
         for (let i = 0; i < allAssetIds.length; i++) {
             const assetId = allAssetIds[i];
-            let status = "ACTIVE";
+            let status = "DELETED / COPYRIGHT"; // Default ke deleted
             let soundName = "Unknown";
 
             try {
-                // 1. Cek detail asset
+                // 1. Ambil Nama dari Economy API
                 const detailsRes = await axios.get(
                     `https://economy.roblox.com/v2/assets/${assetId}/details`,
                     {
@@ -69,47 +69,29 @@ app.post('/api/detect-sounds', async (req, res) => {
                         timeout: 5000
                     }
                 );
-
                 soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown";
 
-                // 2. Coba akses audio file langsung (ini yang detect copyright block)
-                try {
-                    const audioRes = await axios.get(
-                        `https://www.roblox.com/library/${assetId}`,
-                        {
-                            headers: {
-                                'Cookie': `.ROBLOSECURITY=${cookie}`,
-                                'User-Agent': 'Mozilla/5.0'
-                            },
-                            timeout: 5000,
-                            maxRedirects: 0,
-                            validateStatus: () => true // Terima semua status code
-                        }
-                    );
-
-                    // Kalau redirect ke error page atau ada kata "unavailable"
-                    if (audioRes.status !== 200 || 
-                        audioRes.data?.includes('unavailable') ||
-                        audioRes.data?.includes('This item is no longer available')) {
-                        status = "DELETED / COPYRIGHT";
+                // 2. CEK STATUS ASLI: Coba ambil link file audio dari Asset Delivery API
+                // Ini endpoint yang dipakai Roblox Studio buat play audio
+                const deliveryRes = await axios.get(
+                    `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`,
+                    {
+                        headers: {
+                            'Cookie': `.ROBLOSECURITY=${cookie}`,
+                            'User-Agent': 'Roblox/WinInet' // User agent khas Roblox client
+                        },
+                        timeout: 5000
                     }
+                );
 
-                } catch (audioErr) {
-                    // Kalau gagal akses library page = pasti blocked/deleted
-                    status = "DELETED / COPYRIGHT";
-                }
-
-                // 3. Fallback: kalau IsPublic = false, pasti deleted
-                if (detailsRes.data.IsPublic === false) {
-                    status = "DELETED / COPYRIGHT";
+                // Kalau berhasil dapet response dan ada 'location' (link file audio), berarti ACTIVE
+                if (deliveryRes.data && deliveryRes.data.location) {
+                    status = "ACTIVE";
                 }
 
             } catch (err) {
-                // Kalau Economy API error 404/403 = deleted
-                if (err.response?.status === 404 || err.response?.status === 403) {
-                    status = "DELETED / COPYRIGHT";
-                    soundName = "Unknown / Deleted";
-                }
+                // Kalau Economy API atau Delivery API nolak (404/403), berarti pasti Deleted/Copyright
+                status = "DELETED / COPYRIGHT";
             }
 
             allSounds.push({
@@ -118,14 +100,15 @@ app.post('/api/detect-sounds', async (req, res) => {
                 status: status
             });
 
-            await sleep(400); // Sedikit lebih lambat buat test library access
+            // Delay 500ms biar aman dari rate limit (kita ngirim 2 request per asset)
+            await sleep(500);
 
             if ((i + 1) % 10 === 0 || i === allAssetIds.length - 1) {
-                console.log(`[INFO] Progress: ${i + 1}/${allAssetIds.length}`);
+                console.log(`[INFO] Progress: ${i + 1}/${allAssetIds.length} | ID: ${assetId} | Status: ${status}`);
             }
         }
 
-        console.log(`[SUCCESS] Total ${allSounds.length} sounds`);
+        console.log(`[SUCCESS] Total ${allSounds.length} sounds processed.`);
 
         res.json({
             success: true,
