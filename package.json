@@ -1,0 +1,13 @@
+{
+  "name": "roblox-sound-detector",
+  "version": "1.0.0",
+  "description": "Web tool untuk mendeteksi semua Sound Asset ID dari inventory Roblox",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "express": "^4.18.2"
+  }
+}
