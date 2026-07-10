@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Fungsi buat delay (mencegah Rate Limit / 429 Too Many Requests)
+// Fungsi buat delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 app.post('/api/detect-sounds', async (req, res) => {
@@ -21,13 +21,15 @@ app.post('/api/detect-sounds', async (req, res) => {
     }
 
     try {
-        let allSounds = [];
+        let allAssetIds = [];
         let cursor = '';
         let page = 1;
 
         console.log(`[INFO] Memulai scanning inventory untuk User ID: ${userId}`);
 
-        // STEP 1: Ambil semua Asset ID dari Inventory API
+        // ==========================================
+        // STEP 1: Ambil semua Asset ID dari Inventory
+        // ==========================================
         while (true) {
             console.log(`[INFO] Fetching halaman ${page}...`);
             
@@ -39,25 +41,66 @@ app.post('/api/detect-sounds', async (req, res) => {
             const invRes = await axios.get(invUrl, {
                 headers: {
                     'Cookie': `.ROBLOSECURITY=${cookie}`,
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             });
 
-            // Ambil data dari inventory
-            invRes.data.data.forEach(item => {
-                allSounds.push({
-                    assetId: item.assetId,
-                    name: item.name || `Sound ${item.assetId}` // Fallback ke Asset ID kalau name undefined
-                });
-            });
+            const assetIds = invRes.data.data.map(item => item.assetId);
+            allAssetIds.push(...assetIds);
 
-            if (!invRes.data.nextPageCursor) {
-                break;
-            }
-
+            if (!invRes.data.nextPageCursor) break;
             cursor = invRes.data.nextPageCursor;
             page++;
-            await sleep(800); 
+            await sleep(600); 
+        }
+
+        console.log(`[INFO] Ditemukan ${allAssetIds.length} Asset ID. Sekarang fetching nama asli dari Economy API...`);
+
+        // ==========================================
+        // STEP 2: Fetch Nama Asli dari Economy API
+        // ==========================================
+        let allSounds = [];
+        
+        for (let i = 0; i < allAssetIds.length; i++) {
+            const assetId = allAssetIds[i];
+            
+            try {
+                // Endpoint Economy API buat dapetin detail asset (termasuk Nama)
+                const detailsRes = await axios.get(
+                    `https://economy.roblox.com/v2/assets/${assetId}/details`,
+                    {
+                        headers: {
+                            'Cookie': `.ROBLOSECURITY=${cookie}`,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    }
+                );
+
+                // Economy API ngasih nama di field 'Name' (huruf besar) atau 'name'
+                const soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown Sound";
+
+                allSounds.push({
+                    assetId: assetId,
+                    name: soundName
+                });
+
+                // Delay 300ms per request (Cukup cepat tapi aman dari rate limit)
+                await sleep(300);
+
+                // Log progress setiap 10 asset
+                if ((i + 1) % 10 === 0 || i === allAssetIds.length - 1) {
+                    console.log(`[INFO] Progress: ${i + 1}/${allAssetIds.length} asset diproses`);
+                }
+
+            } catch (err) {
+                // Kalau asset di-deleted atau error, kasih nama Unknown
+                console.warn(`[WARN] Gagal fetch detail untuk ID ${assetId}`);
+                allSounds.push({ 
+                    assetId: assetId, 
+                    name: "Unknown / Deleted" 
+                });
+                await sleep(300);
+            }
         }
 
         console.log(`[SUCCESS] Selesai! Total ${allSounds.length} sound ditemukan.`);
@@ -73,7 +116,7 @@ app.post('/api/detect-sounds', async (req, res) => {
         console.error('[ERROR]', error.response?.data || error.message);
         
         if (error.response?.status === 401 || error.response?.status === 403) {
-            return res.status(401).json({ error: 'Cookie ROBLOSECURITY invalid atau expired. Tolong update di Railway!' });
+            return res.status(401).json({ error: 'Cookie ROBLOSECURITY invalid atau expired.' });
         }
         if (error.response?.status === 429) {
             return res.status(429).json({ error: 'Rate limit terdeteksi. Coba lagi beberapa saat.' });
