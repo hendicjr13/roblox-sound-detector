@@ -11,12 +11,11 @@ async function detectSounds() {
         return;
     }
 
-    // UI Loading State
     btn.disabled = true;
     btn.innerText = 'Scanning...';
-    status.innerText = '⏳ Sedang scanning inventory... Ini bisa memakan waktu tergantung jumlah sound. Jangan refresh halaman!';
+    status.innerText = '⏳ Sedang scanning & mengecek status audio... Mohon tunggu.';
     status.classList.remove('hidden');
-    status.className = 'text-center text-yellow-400 mb-4'; // Reset class ke kuning
+    status.className = 'text-center text-yellow-400 mb-4';
     resultArea.classList.add('hidden');
 
     try {
@@ -32,29 +31,40 @@ async function detectSounds() {
             throw new Error(data.error || 'Terjadi kesalahan pada server');
         }
 
-        // Success
         currentSoundsData = data.sounds;
         document.getElementById('totalSounds').innerText = data.totalSounds;
         
         const tbody = document.getElementById('soundTableBody');
-        tbody.innerHTML = ''; // Clear old data
+        tbody.innerHTML = ''; 
 
         data.sounds.forEach(sound => {
             const row = document.createElement('tr');
             row.className = 'border-b border-gray-700 hover:bg-gray-800';
+            
+            // Logic Warna Status
+            let statusHtml = '';
+            if (sound.status === 'ACTIVE') {
+                statusHtml = `<span class="px-2 py-1 bg-green-900 text-green-300 rounded text-xs font-bold">✅ ACTIVE</span>`;
+            } else if (sound.status === 'DELETED / COPYRIGHT') {
+                statusHtml = `<span class="px-2 py-1 bg-red-900 text-red-300 rounded text-xs font-bold">❌ DELETED / COPYRIGHT</span>`;
+            } else {
+                statusHtml = `<span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs font-bold">️ ERROR</span>`;
+            }
+
             row.innerHTML = `
                 <td class="px-4 py-2 font-mono text-blue-300">${sound.assetId}</td>
                 <td class="px-4 py-2 text-gray-300">${sound.name}</td>
+                <td class="px-4 py-2">${statusHtml}</td>
             `;
             tbody.appendChild(row);
         });
 
-        status.innerText = `✅ Selesai! Berhasil menemukan ${data.totalSounds} sound.`;
+        status.innerText = `✅ Selesai! Berhasil mendeteksi ${data.totalSounds} sound.`;
         status.className = 'text-center text-green-400 mb-4';
         resultArea.classList.remove('hidden');
 
     } catch (error) {
-        status.innerText = `❌ Error: ${error.message}`;
+        status.innerText = ` Error: ${error.message}`;
         status.className = 'text-center text-red-400 mb-4';
     } finally {
         btn.disabled = false;
@@ -64,28 +74,20 @@ async function detectSounds() {
 
 function copyAllIds() {
     if (currentSoundsData.length === 0) return;
-    
-    // ✅ FIX: Pastikan pakai backslash-n (\n) buat newline, bukan huruf n biasa
     const ids = currentSoundsData.map(s => s.assetId).join('\n');
-    
     navigator.clipboard.writeText(ids).then(() => {
-        alert('Semua Asset ID berhasil di-copy ke clipboard!');
-    }).catch(err => {
-        console.error('Gagal copy:', err);
-        alert('Gagal copy, coba manual.');
+        alert('Semua Asset ID berhasil di-copy!');
     });
 }
 
 function downloadCsv() {
     if (currentSoundsData.length === 0) return;
-    
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Asset ID,Name\n"; // Header (pakai \n)
+    csvContent += "Asset ID,Name,Status\n"; 
 
     currentSoundsData.forEach(row => {
-        // Escape double quote di nama file biar CSV gak rusak
         const safeName = row.name.replace(/"/g, '""'); 
-        csvContent += `${row.assetId},"${safeName}"\n`; // Pakai \n
+        csvContent += `${row.assetId},"${safeName}",${row.status}\n`; 
     });
 
     const encodedUri = encodeURI(csvContent);
