@@ -7,12 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
-    <div class="max-w-2xl w-full bg-gray-800 p-8 rounded-xl shadow-2xl">
+    <div class="max-w-4xl w-full bg-gray-800 p-8 rounded-xl shadow-2xl">
         <h1 class="text-3xl font-bold text-center mb-2 text-blue-400">🎵 Roblox Sound Detector</h1>
-        <p class="text-center text-gray-400 mb-6">Masukkan User ID Roblox untuk mendeteksi semua Sound Asset ID.</p>
+        <p class="text-center text-gray-400 mb-6">Masukkan User ID Roblox untuk mendeteksi semua Sound Asset ID & Statusnya.</p>
         
         <div class="flex gap-3 mb-6">
-            <input type="text" id="userIdInput" placeholder="Contoh: 123456789" 
+            <input type="text" id="userIdInput" placeholder="Contoh: 10095778724" 
                    class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
             <button id="detectBtn" onclick="detectSounds()" 
                     class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition">
@@ -37,6 +37,7 @@
                         <tr>
                             <th class="px-4 py-2">Asset ID</th>
                             <th class="px-4 py-2">Nama Sound</th>
+                            <th class="px-4 py-2">Status</th>
                         </tr>
                     </thead>
                     <tbody id="soundTableBody">
