@@ -71,29 +71,40 @@ app.post('/api/detect-sounds', async (req, res) => {
                 );
                 soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown";
 
-                // 2. CEK STATUS ASLI: Cek HTTP Status Code dari Asset Delivery
+                // 2. CEK STATUS ASLI: Roblox sekarang WAJIB pakai cookie & balikin JSON
+                //    (sejak update mereka April 2025, bukan redirect 302 lagi)
                 const deliveryRes = await axios.get(
                     `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`,
                     {
                         headers: {
+                            'Cookie': `.ROBLOSECURITY=${cookie}`,
                             'User-Agent': 'Roblox/WinInet'
                         },
                         timeout: 5000,
-                        maxRedirects: 0, // PENTING: Jangan ikuti redirect, cuma cek status code
-                        validateStatus: (status) => status < 500 // Terima 302 dan 404 tanpa error
+                        validateStatus: (status) => status < 500 // biar 400/403/404 gak throw
                     }
                 );
 
-                // Kalau status 302 (Found/Redirect), berarti file audio ada di CDN = ACTIVE
-                // Kalau status 404 (Not Found), berarti file dihapus/diblokir = DELETED
-                if (deliveryRes.status === 302) {
+                const body = deliveryRes.data;
+
+                if (deliveryRes.status === 200 && body && body.location) {
+                    // Ada URL lokasi file audio -> beneran masih ada di CDN
                     status = "ACTIVE";
-                } else {
+                } else if (deliveryRes.status === 403 || deliveryRes.status === 401) {
+                    // Ditolak akses -> bisa private/moderated, bukan pasti "hilang"
+                    status = "UNKNOWN / NO ACCESS";
+                } else if (deliveryRes.status === 404) {
                     status = "DELETED / COPYRIGHT";
+                } else {
+                    // Status/response gak dikenali -> jangan asal cap COPYRIGHT
+                    status = "UNKNOWN / ERROR";
                 }
 
+                console.log(`[DEBUG] Asset ${assetId} -> HTTP ${deliveryRes.status} | body: ${JSON.stringify(body).slice(0, 150)}`);
+
             } catch (err) {
-                status = "DELETED / COPYRIGHT";
+                status = "UNKNOWN / ERROR";
+                console.log(`[DEBUG] Asset ${assetId} -> request gagal: ${err.message}`);
             }
 
             allSounds.push({
