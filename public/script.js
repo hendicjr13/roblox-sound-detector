@@ -53,10 +53,15 @@ async function detectSounds() {
                 statusHtml = `<span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs font-bold">❔ UNKNOWN / ERROR</span>`;
             }
 
+            const createdText = sound.created
+                ? new Date(sound.created).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })
+                : '-';
+
             row.innerHTML = `
                 <td class="px-4 py-2 font-mono text-blue-300">${sound.assetId}</td>
                 <td class="px-4 py-2 text-gray-300">${sound.name}</td>
                 <td class="px-4 py-2">${statusHtml}</td>
+                <td class="px-4 py-2 text-gray-400 text-xs">${createdText}</td>
             `;
             tbody.appendChild(row);
         });
@@ -85,11 +90,12 @@ function copyAllIds() {
 function downloadCsv() {
     if (currentSoundsData.length === 0) return;
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Asset ID,Name,Status\n"; 
+    csvContent += "Asset ID,Name,Status,Created\n";
 
     currentSoundsData.forEach(row => {
-        const safeName = row.name.replace(/"/g, '""'); 
-        csvContent += `${row.assetId},"${safeName}",${row.status}\n`; 
+        const safeName = row.name.replace(/"/g, '""');
+        const createdCsv = row.created ? new Date(row.created).toISOString().split('T')[0] : '';
+        csvContent += `${row.assetId},"${safeName}",${row.status},${createdCsv}\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
