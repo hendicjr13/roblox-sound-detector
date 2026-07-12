@@ -71,40 +71,51 @@ app.post('/api/detect-sounds', async (req, res) => {
                 );
                 soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown";
 
-                // 2. CEK STATUS ASLI: Roblox sekarang WAJIB pakai cookie & balikin JSON
-                //    (sejak update mereka April 2025, bukan redirect 302 lagi)
-                const deliveryRes = await axios.get(
-                    `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`,
-                    {
-                        headers: {
-                            'Cookie': `.ROBLOSECURITY=${cookie}`,
-                            'User-Agent': 'Roblox/WinInet'
-                        },
-                        timeout: 5000,
-                        validateStatus: (status) => status < 500 // biar 400/403/404 gak throw
+                // 2. CEK STATUS ASLI: HTTP 200 = file audio dikirim (binary Ogg/JSON error),
+                //    403/401 = kena moderasi/copyright, 404 = gak ketemu
+                let deliveryRes;
+                let attempt = 0;
+                const maxAttempts = 3;
+
+                while (attempt < maxAttempts) {
+                    try {
+                        deliveryRes = await axios.get(
+                            `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`,
+                            {
+                                headers: {
+                                    'Cookie': `.ROBLOSECURITY=${cookie}`,
+                                    'User-Agent': 'Roblox/WinInet'
+                                },
+                                timeout: 5000,
+                                validateStatus: (s) => s < 500 // biar 400/403/404 gak throw
+                            }
+                        );
+                        break; // sukses, keluar dari retry loop
+                    } catch (retryErr) {
+                        attempt++;
+                        if (attempt >= maxAttempts) throw retryErr;
+                        await sleep(800 * attempt); // backoff sebelum retry (biasanya 502 sementara)
                     }
-                );
+                }
 
-                const body = deliveryRes.data;
-
-                if (deliveryRes.status === 200 && body && body.location) {
-                    // Ada URL lokasi file audio -> beneran masih ada di CDN
+                if (deliveryRes.status === 200) {
+                    // Roblox ngirim file audio langsung (binary Ogg) kalau asset available
                     status = "ACTIVE";
                 } else if (deliveryRes.status === 403 || deliveryRes.status === 401) {
-                    // Ditolak akses -> bisa private/moderated, bukan pasti "hilang"
-                    status = "UNKNOWN / NO ACCESS";
+                    // Terbukti: 403/401 di endpoint ini konsisten sama asset yang kena moderasi/copyright
+                    status = "DELETED / COPYRIGHT (moderated)";
                 } else if (deliveryRes.status === 404) {
                     status = "DELETED / COPYRIGHT";
                 } else {
-                    // Status/response gak dikenali -> jangan asal cap COPYRIGHT
+                    // Status gak dikenali -> jangan asal cap COPYRIGHT
                     status = "UNKNOWN / ERROR";
                 }
 
-                console.log(`[DEBUG] Asset ${assetId} -> HTTP ${deliveryRes.status} | body: ${JSON.stringify(body).slice(0, 150)}`);
+                console.log(`[DEBUG] Asset ${assetId} -> HTTP ${deliveryRes.status} -> ${status}`);
 
             } catch (err) {
                 status = "UNKNOWN / ERROR";
-                console.log(`[DEBUG] Asset ${assetId} -> request gagal: ${err.message}`);
+                console.log(`[DEBUG] Asset ${assetId} -> request gagal setelah retry: ${err.message}`);
             }
 
             allSounds.push({
