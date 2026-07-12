@@ -47,8 +47,10 @@ async function detectSounds() {
                 statusHtml = `<span class="px-2 py-1 bg-green-900 text-green-300 rounded text-xs font-bold">✅ ACTIVE</span>`;
             } else if (sound.status === 'DELETED / COPYRIGHT') {
                 statusHtml = `<span class="px-2 py-1 bg-red-900 text-red-300 rounded text-xs font-bold">❌ DELETED / COPYRIGHT</span>`;
+            } else if (sound.status === 'UNKNOWN / NO ACCESS') {
+                statusHtml = `<span class="px-2 py-1 bg-yellow-900 text-yellow-300 rounded text-xs font-bold">⚠️ NO ACCESS (cek manual)</span>`;
             } else {
-                statusHtml = `<span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs font-bold">️ ERROR</span>`;
+                statusHtml = `<span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs font-bold">❔ UNKNOWN / ERROR</span>`;
             }
 
             row.innerHTML = `
