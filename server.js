@@ -56,9 +56,10 @@ app.post('/api/detect-sounds', async (req, res) => {
             const assetId = allAssetIds[i];
             let status = "DELETED / COPYRIGHT"; // Default
             let soundName = "Unknown";
+            let createdDate = null;
 
             try {
-                // 1. Ambil Nama dari Economy API
+                // 1. Ambil Nama & Tanggal Upload Asli dari Economy API
                 const detailsRes = await axios.get(
                     `https://economy.roblox.com/v2/assets/${assetId}/details`,
                     {
@@ -70,6 +71,7 @@ app.post('/api/detect-sounds', async (req, res) => {
                     }
                 );
                 soundName = detailsRes.data.Name || detailsRes.data.name || "Unknown";
+                createdDate = detailsRes.data.Created || detailsRes.data.created || null;
 
                 // 2. CEK STATUS ASLI: HTTP 200 = file audio dikirim (binary Ogg/JSON error),
                 //    403/401 = kena moderasi/copyright, 404 = gak ketemu
@@ -121,7 +123,8 @@ app.post('/api/detect-sounds', async (req, res) => {
             allSounds.push({
                 assetId: assetId,
                 name: soundName,
-                status: status
+                status: status,
+                created: createdDate
             });
 
             await sleep(500);
@@ -132,6 +135,16 @@ app.post('/api/detect-sounds', async (req, res) => {
         }
 
         console.log(`[SUCCESS] Total ${allSounds.length} sounds processed.`);
+
+        // Urutin dari yang paling baru di-upload ke paling lama.
+        // Pakai tanggal "Created" asli kalau ada, fallback ke Asset ID (lebih besar = lebih baru)
+        // kalau tanggalnya gak kebaca dari API.
+        allSounds.sort((a, b) => {
+            if (a.created && b.created) {
+                return new Date(b.created) - new Date(a.created);
+            }
+            return Number(b.assetId) - Number(a.assetId);
+        });
 
         res.json({
             success: true,
